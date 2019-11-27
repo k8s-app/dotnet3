@@ -1,0 +1,64 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: js-webapi-service
+  namespace: default
+spec:
+  selector:
+    app: js-webapi-pod
+  ports:
+    - protocol: TCP
+      port: 8080
+      targetPort: 80
+  type: NodePort
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: js-webapi-deployment
+  namespace: default
+  labels:
+    app: js-webapi-pod
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: js-webapi-pod
+  template:
+    metadata:
+      labels:
+        app: js-webapi-pod
+    spec:
+      containers:
+      - name: js-webapi-container
+        image: jaricsng/sample-webapi:0.1.0
+        imagePullPolicy: IfNotPresent
+        # securityContext:
+        #   privileged: false
+        #   readOnlyRootFilesystem: true
+        #   allowPrivilegeEscalation: false
+        #   runAsNonRoot: true
+        #   runAsUser: 1000
+        #   capabilities:
+        #     drop:
+        #     - ALL
+        livenessProbe:
+          httpGet:
+            path: "/weatherforecast"
+            port: 80
+          initialDelaySeconds: 3
+          periodSeconds: 3
+        readinessProbe:
+          httpGet:
+            path: "/weatherforecast"
+            port: 80
+          initialDelaySeconds: 5
+          periodSeconds: 5  
+        resources:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+          limits:
+            cpu: 500m
+            memory: 128Mi
