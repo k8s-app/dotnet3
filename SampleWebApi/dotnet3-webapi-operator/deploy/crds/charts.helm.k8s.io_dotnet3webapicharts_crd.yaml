@@ -1,0 +1,18 @@
+apiVersion: apiextensions.k8s.io/v1beta1
+kind: CustomResourceDefinition
+metadata:
+  name: dotnet3webapicharts.charts.helm.k8s.io
+spec:
+  group: charts.helm.k8s.io
+  names:
+    kind: Dotnet3WebapiChart
+    listKind: Dotnet3WebapiChartList
+    plural: dotnet3webapicharts
+    singular: dotnet3webapichart
+  scope: Namespaced
+  subresources:
+    status: {}
+  versions:
+  - name: v1alpha1
+    served: true
+    storage: true

@@ -141,6 +141,7 @@ ensure the image used in the deployment is the tag you create with docker build 
 ```
 kubectl apply -f k8s/sample-webapi.yaml
 kubectl get deployment
+kubectl get pods
 kubectl get services
 ```
 
@@ -277,19 +278,19 @@ tiller-deploy-fc56b78dd-cdhn9            1/1     Running   0          4m32s
 create the helm chart
 
 ```
-helm create 
+helm create dotnet3-webapi-chart
 ```
 
 install chart
 
 ```
-helm install --name my-release stable/redis
+helm install --name js-dotnet3-webapi dotnet3-webapi-chart
 ```
 
 delete chart
 
 ```
-helm delete my-release
+helm delete js-dotnet3-webapi
 ```
 
 
@@ -358,6 +359,10 @@ helm install --name js-dotnet3-webapi ./dotnet3-webapi-chart --tls
 
 ```
 helm list
+
+NAME                    REVISION        UPDATED                         STATUS          CHART                           APP VERSION     NAMESPACE
+js-dotnet3-webapi       1               Wed Nov 27 20:48:21 2019        DEPLOYED        dotnet3-webapi-chart-0.1.0      1.0             default  
+
 ```
 
 ## to access the application
@@ -402,6 +407,185 @@ deploying with archive
 ```
 helm install --name js-dotnet3-webapi dotnet3-webapi-chart-0.1.0.tgz --tls
 ```
+
+# Using Operator Framework
+
+## create a new operator from existing helm 
+
+```
+operator-sdk new dotnet3-webapi-operator --type=helm --helm-chart ./dotnet3-webapi-chart
+```
+
+change folder to ./dotnet3-webapi-operator and run the following command to build the image
+
+## build it
+
+```
+operator-sdk build jaricsng/dotnet3-webapi-operator:0.1.0
+```
+
+push it to dockerhub
+
+```
+docker login
+docker push jaricsng/dotnet3-webapi-operator:0.1.0
+```
+
+## deploy it
+
+update the image name and tag in file ./dotnet3-webapi-operator/deploy/operator.yaml and then deploy it with the following commands
+
+Before running the operator, the CRD must be registered with the Kubernetes apiserver
+
+```
+kubectl apply -f ./dotnet3-webapi-operator/deploy/crds/charts.helm.k8s.io_dotnet3webapicharts_crd.yaml
+
+customresourcedefinition.apiextensions.k8s.io/dotnet3webapicharts.charts.helm.k8s.io created
+```
+
+Setup RBAC and deploy the webapi-operator
+```
+kubectl apply -f ./dotnet3-webapi-operator/deploy/service_account.yaml
+
+serviceaccount/dotnet3-webapi-operator created
+```
+
+```
+kubectl apply -f ./dotnet3-webapi-operator/deploy/role.yaml
+
+role.rbac.authorization.k8s.io/dotnet3-webapi-operator created
+```
+
+```
+kubectl apply -f ./dotnet3-webapi-operator/deploy/role_binding.yaml
+
+rolebinding.rbac.authorization.k8s.io/dotnet3-webapi-operator created
+```
+
+finally, run the webapi-operator 
+```
+kubectl apply -f ./dotnet3-webapi-operator/deploy/operator.yaml
+
+deployment.apps/dotnet3-webapi-operator created
+```
+
+### Verify that the Deployment is up and running
+
+```
+kubectl get deployment
+
+NAME                      READY   UP-TO-DATE   AVAILABLE   AGE
+dotnet3-webapi-operator   1/1     1            1           9s
+```
+
+### Verify that the Pod is up and running
+
+```
+kubectl get pod
+
+NAME                                       READY   STATUS    RESTARTS   AGE
+dotnet3-webapi-operator-674666d495-c2zrl   1/1     Running   0          16s
+```
+
+## Create the example SampleWebApi with the Controller (CR)
+
+to deploy a sample webapi using the controller (CR), run the command 
+
+```
+kubectl apply -f ./dotnet3-webapi-operator/deploy/crds/charts.helm.k8s.io_v1alpha1_dotnet3webapichart_cr.yaml
+
+dotnet3webapichart.charts.helm.k8s.io/example-dotnet3webapichart created
+```
+
+Ensure that the webapi-operator creates the deployment for the CR
+
+```
+kubectl get deployment
+
+NAME                                              READY   UP-TO-DATE   AVAILABLE   AGE
+dotnet3-webapi-operator                           1/1     1            1           2m9s
+example-dotnet3webapichart-dotnet3-webapi-chart   2/2     2            2           21s
+```
+
+Check the pods and CR status to confirm the status is updated with the webapi pod names
+
+the controller will deploy 2 replica as defined in the deployment in helm chart.
+
+```
+kubectl get pods
+
+NAME                                                              READY   STATUS    RESTARTS   AGE
+dotnet3-webapi-operator-674666d495-ct2bf                          1/1     Running   0          2m28s
+example-dotnet3webapichart-dotnet3-webapi-chart-5647495ff47vw78   1/1     Running   0          40s
+example-dotnet3webapichart-dotnet3-webapi-chart-5647495ff4x4886   1/1     Running   0          40s
+```
+
+## clean up
+
+```
+kubectl delete -f ./dotnet3-webapi-operator/deploy/crds/charts.helm.k8s.io_v1alpha1_dotnet3webapichart_cr.yaml
+
+dotnet3webapichart.charts.helm.k8s.io "example-dotnet3webapichart" deleted
+```
+
+```
+kubectl delete -f ./dotnet3-webapi-operator/deploy/crds/charts.helm.k8s.io_dotnet3webapicharts_crd.yaml
+
+customresourcedefinition.apiextensions.k8s.io "dotnet3webapicharts.charts.helm.k8s.io" deleted
+```
+
+```
+kubectl delete -f ./dotnet3-webapi-operator/deploy/operator.yaml
+
+deployment.apps "dotnet3-webapi-operator" deleted
+```
+
+```
+kubectl delete -f ./dotnet3-webapi-operator/deploy/role_binding.yaml
+
+rolebinding.rbac.authorization.k8s.io "dotnet3-webapi-operator" deleted
+```
+
+```
+kubectl delete -f ./dotnet3-webapi-operator/deploy/role.yaml
+
+role.rbac.authorization.k8s.io "dotnet3-webapi-operator" deleted
+```
+
+```
+kubectl delete -f ./dotnet3-webapi-operator/deploy/service_account.yaml
+
+serviceaccount "dotnet3-webapi-operator" deleted
+```
+
+# Appsody Stack
+
+```
+appsody stack create dotnet3-webapi-stack
+```
+
+the above command will create a structure as shown below
+
+```
+.
+├── README.md
+├── image
+│   ├── Dockerfile-stack
+│   ├── LICENSE
+│   ├── config
+│   │   └── app-deploy.yaml
+│   └── project
+│       └── Dockerfile
+├── stack.yaml
+└── templates
+    └── hello
+```
+
+do the following
+1. from folder ./dotnet3-webapi-stack/image, run ```dotnet new webapi -o project```
+2. update ./dotnet3-webapi-stack/image/project/Dockerfile as shown here.
+3. update the ./dotnet3-webapi-stack/stack.yaml accordingly about this stack
+4. 
 
 
 # Deploying to OpenShift 4

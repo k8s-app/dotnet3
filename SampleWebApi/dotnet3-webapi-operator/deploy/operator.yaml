@@ -1,0 +1,31 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dotnet3-webapi-operator
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      name: dotnet3-webapi-operator
+  template:
+    metadata:
+      labels:
+        name: dotnet3-webapi-operator
+    spec:
+      serviceAccountName: dotnet3-webapi-operator
+      containers:
+        - name: dotnet3-webapi-operator
+          # Replace this with the built image name
+          image: jaricsng/dotnet3-webapi-operator:0.1.0
+          imagePullPolicy: Always
+          env:
+            - name: WATCH_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: OPERATOR_NAME
+              value: "dotnet3-webapi-operator"
